@@ -5,10 +5,16 @@ from flask_cors import CORS
 app = Flask(__name__)
 cors = CORS(app)
 
+# For test dump the RDS database care connect and use the local database.
+# local (example)
+# conn = psycopg2.connect(host='localhost', port=5432, dbname='care_connect', user='postgres', password='admin')
+# external (real)
+# conn = psycopg2.connect(host='care-connect.ciqo0cjvjfaa.us-west-1.rds.amazonaws.com', port=5432, dbname='care_connect', user='postgres', password='Samuel1234')
+
 
 def connect_to_db():
-    conn = psycopg2.connect(host='localhost', port=5432,
-                            dbname='care_connect', user='postgres', password='admin')
+    conn = psycopg2.connect(host='care-connect.ciqo0cjvjfaa.us-west-1.rds.amazonaws.com', port=5432,
+                            dbname='care_connect', user='postgres', password='Samuel1234')
     return conn
 
 
