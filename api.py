@@ -64,5 +64,25 @@ def registrar_medico():
     return jsonify({'message': 'User registered successfully'}), 201
 
 
+@app.route("/login_medico", methods=["POST"])
+def login_medico():
+    # Get the login data from the request
+    data = request.json
+    correo = data['email']
+    contraseña = data['password']
+
+    # Check if the credentials are valid
+    g.cursor.execute(
+        "SELECT * FROM medico WHERE correo = %s AND contraseña = %s", (correo, contraseña))
+    medico = g.cursor.fetchone()
+
+    if medico:
+        # If the credentials are valid, return a success message and any relevant data
+        return jsonify({'message': 'Medico logged in successfully', 'id': medico[0], 'nombre': medico[3]}), 200
+    else:
+        # If the credentials are invalid, return an error message
+        return jsonify({'message': 'Invalid credentials'}), 401
+
+
 if __name__ == "__main__":
     app.run()
