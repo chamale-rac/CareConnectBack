@@ -69,6 +69,24 @@ def registrar_medico():
     # Return a success message
     return jsonify({'message': 'User registered successfully'}), 201
 
+@app.route("/registrar_paciente", methods=["POST"])
+def registrar_paciente():
+    # Get the registration data from the request
+    data = request.json
+    nombres = data['nombres']
+    apellidos = data['apellidos']
+    correo = data['correo']
+    telefono = data['telefono']
+    direccion = data['direccion']
+
+    # Insert the data into the database
+    g.cursor.execute("INSERT INTO paciente (nombres, apellidos, correo, telefono, direccion) VALUES (%s, %s, %s, %s, %s)",
+                     (nombres, apellidos, correo, telefono, direccion))
+    g.conn.commit()
+
+    # Return a success message
+    return jsonify({'message': 'User registered successfully'}), 201
+
 
 @app.route("/login_medico", methods=["POST"])
 def login_medico():
