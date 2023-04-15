@@ -38,15 +38,47 @@ def hello():
 @app.route("/especialidad_medica")
 def get_especialidad_medica():
     g.cursor.execute('SELECT * FROM especialidad_medica')
-    users = g.cursor.fetchall()
-    return jsonify(users)
+    especialiades = g.cursor.fetchall()
+    return jsonify(especialiades)
 
 
 @app.route("/instalacion_medica")
 def get_instalacion_medica():
     g.cursor.execute('SELECT * FROM instalacion_medica')
-    users = g.cursor.fetchall()
-    return jsonify(users)
+    instalaciones = g.cursor.fetchall()
+    return jsonify(instalaciones)
+
+
+@app.route("/get/medico/transferencia")
+def get_medicos():
+    g.cursor.execute('SELECT id, nombre, id_instalacion_medica FROM medico')
+    medicos = g.cursor.fetchall()
+    return jsonify(medicos)
+
+
+@app.route("/medico/transferir", methods=["POST"])
+def transferir_medico():
+    try:
+        # Get the registration data from the request
+        data = request.json
+        admin = data['admin_id']
+        medico = data['medico_id']
+        de = data['de']
+        hacia = data['hacia']
+
+        # Insert the data into the database
+        g.cursor.execute("CALL transferir_medico(%s, %s, %s, %s)",
+                         (admin, medico, de, hacia))
+        g.conn.commit()
+
+        # Return a success message
+        return jsonify({'message': 'Medico transferido successfully'}), 201
+    except Exception as e:
+        # Rollback the transaction in case of an error
+        g.conn.rollback()
+
+        # Return an error message
+        return jsonify({'message': 'Error transferring medico: {}'.format(str(e))}), 500
 
 
 @app.route("/registrar_medico", methods=["POST"])
@@ -70,6 +102,23 @@ def registrar_medico():
     return jsonify({'message': 'User registered successfully'}), 201
 
 
+@app.route("/registrar_admin", methods=["POST"])
+def registrar_admin():
+    # Get the registration data from the request
+    data = request.json
+    correo = data['correo']
+    contraseña = data['contraseña']
+    idInstalacionMedica = data['idInstalacionMedica']
+
+    # Insert the data into the database
+    g.cursor.execute("INSERT INTO admin (correo, contraseña, id_instalacion_medica) VALUES (%s, %s, %s)",
+                     (correo, contraseña, idInstalacionMedica))
+    g.conn.commit()
+
+    # Return a success message
+    return jsonify({'message': 'Admin registered successfully'}), 201
+
+
 @app.route("/login_medico", methods=["POST"])
 def login_medico():
     # Get the login data from the request
@@ -84,7 +133,27 @@ def login_medico():
 
     if medico:
         # If the credentials are valid, return a success message and any relevant data
-        return jsonify({'message': 'Medico logged in successfully', 'id': medico[0], 'nombre': medico[3]}), 200
+        return jsonify({'message': 'Medico logged in successfully', 'id': medico[0], 'nombre': medico[3], 'role': 'medico'}), 200
+    else:
+        # If the credentials are invalid, return an error message
+        return jsonify({'message': 'Invalid credentials'}), 401
+
+
+@app.route("/login_admin", methods=["POST"])
+def login_admin():
+    # Get the login data from the request
+    data = request.json
+    correo = data['email']
+    contraseña = data['password']
+
+    # Check if the credentials are valid
+    g.cursor.execute(
+        "SELECT * FROM admin WHERE correo = %s AND contraseña = %s", (correo, contraseña))
+    admin = g.cursor.fetchone()
+
+    if admin:
+        # If the credentials are valid, return a success message and any relevant data
+        return jsonify({'message': 'Admin logged in successfully', 'id': admin[0], 'id_instalacion_medica': admin[3], 'role': 'admin'}), 200
     else:
         # If the credentials are invalid, return an error message
         return jsonify({'message': 'Invalid credentials'}), 401
