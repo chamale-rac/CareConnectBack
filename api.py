@@ -202,5 +202,64 @@ def get_paciente_consultas(patient_id):
         return jsonify({'message': 'Error obteniendo consultas: {}'.format(str(e))}), 500
 
 
+@app.route("/paciente/ultima_consulta/<int:patient_id>")
+def get_paciente_ultima_bitacora(patient_id):
+    try:
+        g.cursor.execute('''
+                            SELECT b.peso, b.presion_arterial, b.eficacia, b.created_at
+                                FROM consulta c
+                                JOIN bitacora b on c.id_consulta = b.id_consulta
+                            WHERE c.id_paciente = %s
+                            ORDER BY c.created_at DESC
+                            LIMIT 1;
+                        ''', str(patient_id))
+        data = g.cursor.fetchone()
+        return jsonify({'message': 'Ultima consulta encontrada', 'peso': data[0], 'presion_arterial': data[1], 'eficacia': data[2], 'fecha': data[3]}), 201
+
+    except Exception as e:
+        # Rollback the transaction in case of an error
+        g.conn.rollback()
+        # Return an error message
+        return jsonify({'message': 'Error obteniendo ultima consulta: {}'.format(str(e))}), 500
+
+
+@app.route("/paciente/consulta/<int:consulta_id>")
+def get_specific_consulta(consulta_id):
+    try:
+        g.cursor.execute('''
+                            SELECT p.nombres || ' ' || p.apellidos as entire, im.nombre, m.nombre, c.created_at
+                            FROM consulta c
+                                    JOIN instalacion_medica im ON c.id_instalacion = im.id_instalacion_medica
+                                    JOIN medico m on c.id_medico = m.id
+                                    JOIN paciente p on c.id_paciente = p.id
+                            WHERE c.id_consulta = %s;
+                        ''', str(consulta_id))
+        data = g.cursor.fetchone()
+        return jsonify({'message': 'Consulta encontrada', 'paciente': data[0], 'instalacion': data[1], 'medico': data[2], 'fecha': data[3]}), 201
+
+    except Exception as e:
+        # Rollback the transaction in case of an error
+        g.conn.rollback()
+        # Return an error message
+        return jsonify({'message': 'Error obteniendo consulta: {}'.format(str(e))}), 500
+
+
+@app.route("/paciente/consulta/bitacora/<int:consulta_id>")
+def get_specific_bitacora(consulta_id):
+    try:
+        g.cursor.execute('''
+                            SELECT presion_arterial, peso, expediente, diagnostico, created_at, eficacia
+                                FROM bitacora WHERE id_consulta = %s;
+                        ''', str(consulta_id))
+        data = g.cursor.fetchone()
+        return jsonify({'message': 'Bitacora encontrada', 'presion': data[0], 'peso': data[1], 'expediente': data[2], 'diagnostico': data[3], 'fecha': data[4], 'eficacia': data[5]}), 201
+
+    except Exception as e:
+        # Rollback the transaction in case of an error
+        g.conn.rollback()
+        # Return an error message
+        return jsonify({'message': 'Error obteniendo bitacora: {}'.format(str(e))}), 500
+
+
 if __name__ == "__main__":
     app.run()
