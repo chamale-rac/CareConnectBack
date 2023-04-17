@@ -107,6 +107,13 @@ def login_medico():
         # If the credentials are invalid, return an error message
         return jsonify({'message': 'Invalid credentials'}), 401
 
+@app.route("/buscar_paciente")
+def buscar_pacientes():
+    search_term = request.args.get('search')
+    g.cursor.execute('SELECT * FROM paciente WHERE nombres ILIKE %s OR apellidos ILIKE %s', ('%'+search_term+'%', '%'+search_term+'%'))
+    pacientes = g.cursor.fetchall()
+    return jsonify(pacientes)
+
 
 if __name__ == "__main__":
     app.run()
