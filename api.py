@@ -159,5 +159,48 @@ def login_admin():
         return jsonify({'message': 'Invalid credentials'}), 401
 
 
+@app.route('/paciente/<int:patient_id>')
+def get_paciente(patient_id):
+    g.cursor.execute(
+        "SELECT * FROM paciente WHERE id = %s", str(patient_id))
+    paciente = g.cursor.fetchone()
+
+    if paciente:
+        # If the credentials are valid, return a success message and any relevant data
+        return jsonify({'message': 'Paciente encontrado', 'id': paciente[0], 'nombres': paciente[1], 'apellidos': paciente[2], 'correo': paciente[3], 'telefono': paciente[4], 'direccion': paciente[5]}), 200
+    else:
+        # If the credentials are invalid, return an error message
+        return jsonify({'message': 'Error, no se encontró el paciente'}), 401
+
+
+@app.route("/paciente/consultas/<int:patient_id>")
+def get_paciente_consultas(patient_id):
+    try:
+        g.cursor.execute('''
+                            SELECT c.id_consulta, im.nombre, m.nombre, c.created_at, bit.diagnostico
+                            FROM consulta c
+                                JOIN instalacion_medica im ON c.id_instalacion = im.id_instalacion_medica
+                                JOIN medico m on c.id_medico = m.id
+                                JOIN bitacora bit ON bit.id_consulta = c.id_consulta
+                            WHERE c.id_paciente = %s
+                        ''', str(patient_id))
+        rows = g.cursor.fetchall()
+        consultas = []
+        for row in rows:
+            consulta = {}
+            consulta['id'] = row[0]
+            consulta['instalacion'] = row[1]
+            consulta['author'] = row[2]
+            consulta['date'] = row[3]
+            consulta['details'] = row[4]
+            consultas.append(consulta)
+        return jsonify(consultas), 201
+    except Exception as e:
+        # Rollback the transaction in case of an error
+        g.conn.rollback()
+        # Return an error message
+        return jsonify({'message': 'Error obteniendo consultas: {}'.format(str(e))}), 500
+
+
 if __name__ == "__main__":
     app.run()
