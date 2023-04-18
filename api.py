@@ -33,7 +33,6 @@ def teardown_request(exception):
     g.cursor.close()
     g.conn.close()
 
-
 @app.route("/")
 def hello():
     return "This is the test api"
@@ -261,6 +260,29 @@ def agregar_inventario():
     return jsonify(
         {'message': 'Producto registrado al inventario exitosamente'}), 201
 
+@app.route("/registrar_paciente", methods=["POST"])
+def registrar_paciente():
+    # Get the registration data from the request
+    data = request.json
+    nombres = data['nombres']
+    apellidos = data['apellidos']
+    correo = data['correo']
+    telefono = data['telefono']
+    direccion = data['direccion']
+
+    # Insert the data into the database
+    g.cursor.execute("INSERT INTO paciente (nombres, apellidos, correo, telefono, direccion) VALUES (%s, %s, %s, %s, %s)",
+                     (nombres, apellidos, correo, telefono, direccion))
+    g.conn.commit()
+
+    # Return a success message
+    return jsonify({'message': 'User registered successfully'}), 201
+@app.route("/buscar_paciente")
+def buscar_pacientes():
+    search_term = request.args.get('search')
+    g.cursor.execute('SELECT * FROM paciente WHERE nombres ILIKE %s OR apellidos ILIKE %s', ('%'+search_term+'%', '%'+search_term+'%'))
+    pacientes = g.cursor.fetchall()
+    return jsonify(pacientes)
 
 if __name__ == "__main__":
     app.run()
