@@ -13,8 +13,12 @@ cors = CORS(app)
 
 
 def connect_to_db():
-    conn = psycopg2.connect(host='care-connect.ciqo0cjvjfaa.us-west-1.rds.amazonaws.com', port=5432,
-                            dbname='care_connect', user='postgres', password='Samuel1234')
+    conn = psycopg2.connect(
+        host='care-connect.ciqo0cjvjfaa.us-west-1.rds.amazonaws.com',
+        port=5432,
+        dbname='care_connect',
+        user='postgres',
+        password='Samuel1234')
     return conn
 
 
@@ -35,63 +39,93 @@ def hello():
     return "This is the test api"
 
 
-@app.route("/tipos_estado_paciente")
-def get_tipos_estado_paciente():
-    g.cursor.execute('SELECT * FROM tipos_estado_paciente')
-    rows = g.cursor.fetchall()
-    types = []
-    for row in rows:
-        _type = {}
-        _type['value'] = row[0]
-        _type['definition'] = row[1]
-        types.append(_type)
-    return jsonify(types), 201
-
-
 @app.route("/especialidad_medica")
 def get_especialidad_medica():
     g.cursor.execute('SELECT * FROM especialidad_medica')
-    especialidades = g.cursor.fetchall()
-    return jsonify(especialidades)
+    users = g.cursor.fetchall()
+    return jsonify(users)
 
 
 @app.route("/instalacion_medica")
 def get_instalacion_medica():
     g.cursor.execute('SELECT * FROM instalacion_medica')
-    instalaciones = g.cursor.fetchall()
-    return jsonify(instalaciones)
+    users = g.cursor.fetchall()
+    return jsonify(users)
 
 
-@app.route("/get/medico/transferencia")
-def get_medicos():
-    g.cursor.execute('SELECT id, nombre, id_instalacion_medica FROM medico')
-    medicos = g.cursor.fetchall()
-    return jsonify(medicos)
+@app.route("/productos")
+def get_productos():
+    g.cursor.execute('SELECT * FROM producto')
+    products = g.cursor.fetchall()
+    return jsonify(products)
 
 
-@app.route("/medico/transferir", methods=["POST"])
-def transferir_medico():
-    try:
-        # Get the registration data from the request
-        data = request.json
-        admin = data['admin_id']
-        medico = data['medico_id']
-        de = data['de']
-        hacia = data['hacia']
+@app.route("/pacientes")
+def get_pacientes():
+    g.cursor.execute('SELECT * FROM paciente')
+    products = g.cursor.fetchall()
+    return jsonify(products)
 
-        # Insert the data into the database
-        g.cursor.execute("CALL transferir_medico(%s, %s, %s, %s)",
-                         (admin, medico, de, hacia))
-        g.conn.commit()
 
-        # Return a success message
-        return jsonify({'message': 'Medico transferido successfully'}), 201
-    except Exception as e:
-        # Rollback the transaction in case of an error
-        g.conn.rollback()
+@app.route('/medicos/<int:medico_id>', methods=['GET'])
+def get_medico(medico_id):
+    g.cursor.execute('SELECT * FROM medico WHERE id = %s', (medico_id, ))
+    medico = g.cursor.fetchone()
+    return jsonify(medico)
 
-        # Return an error message
-        return jsonify({'message': 'Error transferring medico: {}'.format(str(e))}), 500
+
+@app.route('/stock')
+def get_stock():
+    id_instalacion_medica = request.args.get('id_instalacion_medica')
+
+    g.cursor.execute(
+        """
+        SELECT id_producto, nombre, cantidad FROM stock
+        JOIN producto p ON stock.id_producto = p.id
+        WHERE id_instalacion_medica = %s
+    """, (id_instalacion_medica, ))
+
+    rows = g.cursor.fetchall()
+    columns = ('id', 'nombre', 'cantidad')
+    result = [dict(zip(columns, row)) for row in rows]
+
+    return jsonify(result)
+
+
+@app.route('/procedimientos')
+def get_procedimientos():
+    id_instalacion_medica = request.args.get('id_instalacion_medica')
+
+    g.cursor.execute(
+        """
+        SELECT id_procedimiento, nombre FROM procedimientos
+        WHERE id_instalacion_medica = %s
+      
+    """, (id_instalacion_medica, ))
+
+    rows = g.cursor.fetchall()
+    columns = ('id', 'nombre')
+    result = [dict(zip(columns, row)) for row in rows]
+
+    return jsonify(result)
+
+
+@app.route('/pruebas-diagnosticas')
+def get_pruebas_diagnosticas():
+    id_instalacion_medica = request.args.get('id_instalacion_medica')
+
+    g.cursor.execute(
+        """
+        SELECT id_prueba, nombre FROM pruebas_diagnosticas
+        WHERE id_instalacion_medica = %s
+      
+    """, (id_instalacion_medica, ))
+
+    rows = g.cursor.fetchall()
+    columns = ('id', 'nombre')
+    result = [dict(zip(columns, row)) for row in rows]
+
+    return jsonify(result)
 
 
 @app.route("/registrar_medico", methods=["POST"])
@@ -107,47 +141,63 @@ def registrar_medico():
     idInstalacionMedica = data['idInstalacionMedica']
 
     # Insert the data into the database
-    g.cursor.execute("INSERT INTO medico (correo, contraseña, nombre, direccion, num_telefono, id_especialidad_medica, id_instalacion_medica) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                     (correo, contraseña, nombre, direccion, numTelefono, idEspecialidadMedica, idInstalacionMedica))
-    g.conn.commit()
-
-    # Return a success message
-    return jsonify({'message': 'User registered successfully'}), 201
-
-@app.route("/registrar_paciente", methods=["POST"])
-def registrar_paciente():
-    # Get the registration data from the request
-    data = request.json
-    nombres = data['nombres']
-    apellidos = data['apellidos']
-    correo = data['correo']
-    telefono = data['telefono']
-    direccion = data['direccion']
-
-    # Insert the data into the database
-    g.cursor.execute("INSERT INTO paciente (nombres, apellidos, correo, telefono, direccion) VALUES (%s, %s, %s, %s, %s)",
-                     (nombres, apellidos, correo, telefono, direccion))
+    g.cursor.execute(
+        "INSERT INTO medico (correo, contraseña, nombre, direccion, num_telefono, id_especialidad_medica, id_instalacion_medica) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        (correo, contraseña, nombre, direccion, numTelefono,
+         idEspecialidadMedica, idInstalacionMedica))
     g.conn.commit()
 
     # Return a success message
     return jsonify({'message': 'User registered successfully'}), 201
 
 
-@app.route("/registrar_admin", methods=["POST"])
-def registrar_admin():
+@app.route("/consulta", methods=["POST"])
+def nueva_consulta():
     # Get the registration data from the request
     data = request.json
-    correo = data['correo']
-    contraseña = data['contraseña']
-    idInstalacionMedica = data['idInstalacionMedica']
+    consulta = data['consulta']
+    bitacora = data['bitacora']
+    pruebas = data['pruebas']
+    medicamentos = data['medicamentos']
+    procedimientos = data['procedimientos']
 
     # Insert the data into the database
-    g.cursor.execute("INSERT INTO admin (correo, contraseña, id_instalacion_medica) VALUES (%s, %s, %s)",
-                     (correo, contraseña, idInstalacionMedica))
+    g.cursor.execute(
+        "INSERT INTO consulta (id_paciente, id_instalacion, id_medico) VALUES (%s, %s, %s) RETURNING id_consulta",
+        (consulta['idPaciente'], consulta['idInstalacion'],
+         consulta['idMedico']))
+    id_consulta = g.cursor.fetchone()[0]
     g.conn.commit()
 
+    g.cursor.execute(
+        "INSERT INTO bitacora (id_consulta, presion_arterial, peso, expediente, diagnostico, eficacia) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id_bitacora",
+        (id_consulta, bitacora['presion'], bitacora['peso'],
+         bitacora['expediente'], bitacora['diagnostico'],
+         bitacora['eficaciaTratamiento']))
+    g.conn.commit()
+    id_bitacora = g.cursor.fetchone()[0]
+
+    for prueba in pruebas:
+        g.cursor.execute(
+            "INSERT INTO pruebas_diagnosticas_bitacora (id_prueba, id_bitacora) VALUES (%s, %s)",
+            (prueba['idPrueba'], id_bitacora))
+        g.conn.commit()
+
+    for medicamento in medicamentos:
+        g.cursor.execute(
+            "INSERT INTO medicamento_bitacora (id_bitacora, id_medicamento, cantidad) VALUES (%s, %s, %s)",
+            (id_bitacora, medicamento['idMedicamento'],
+             medicamento['cantidad']))
+        g.conn.commit()
+
+    for procedimiento in procedimientos:
+        g.cursor.execute(
+            "INSERT INTO procedimientos_bitacora (id_bitacora, id_procedimiento) VALUES (%s, %s)",
+            (id_bitacora, procedimiento['idProcedimiento']))
+        g.conn.commit()
+
     # Return a success message
-    return jsonify({'message': 'Admin registered successfully'}), 201
+    return jsonify({'message': 'Consulta agregada exitosamente'}), 201
 
 
 @app.route("/login_medico", methods=["POST"])
@@ -159,170 +209,57 @@ def login_medico():
 
     # Check if the credentials are valid
     g.cursor.execute(
-        "SELECT * FROM medico WHERE correo = %s AND contraseña = %s", (correo, contraseña))
+        "SELECT * FROM medico WHERE correo = %s AND contraseña = %s",
+        (correo, contraseña))
     medico = g.cursor.fetchone()
 
     if medico:
         # If the credentials are valid, return a success message and any relevant data
-        return jsonify({'message': 'Medico logged in successfully', 'id': medico[0], 'nombre': medico[3], 'role': 'medico'}), 200
+        return jsonify({
+            'message': 'Medico logged in successfully',
+            'id': medico[0],
+            'nombre': medico[3]
+        }), 200
     else:
         # If the credentials are invalid, return an error message
         return jsonify({'message': 'Invalid credentials'}), 401
 
-@app.route("/buscar_paciente")
-def buscar_pacientes():
-    search_term = request.args.get('search')
-    g.cursor.execute('SELECT * FROM paciente WHERE nombres ILIKE %s OR apellidos ILIKE %s', ('%'+search_term+'%', '%'+search_term+'%'))
-    pacientes = g.cursor.fetchall()
-    return jsonify(pacientes)
 
-
-@app.route("/login_admin", methods=["POST"])
-def login_admin():
-    # Get the login data from the request
+@app.route("/registrar_producto", methods=["POST"])
+def registrar_producto():
+    # Get the product data from the request
     data = request.json
-    correo = data['email']
-    contraseña = data['password']
+    nombre = data['nombre']
+    descripcion = data['descripcion']
 
-    # Check if the credentials are valid
+    # Insert the data into the database
     g.cursor.execute(
-        "SELECT * FROM admin WHERE correo = %s AND contraseña = %s", (correo, contraseña))
-    admin = g.cursor.fetchone()
+        "INSERT INTO producto (nombre, descripcion) VALUES (%s, %s)",
+        (nombre, descripcion))
+    g.conn.commit()
 
-    if admin:
-        # If the credentials are valid, return a success message and any relevant data
-        return jsonify({'message': 'Admin logged in successfully', 'id': admin[0], 'id_instalacion_medica': admin[3], 'role': 'admin'}), 200
-    else:
-        # If the credentials are invalid, return an error message
-        return jsonify({'message': 'Invalid credentials'}), 401
+    # Return a success message
+    return jsonify({'message': 'Producto registrado exitosamente'}), 201
 
 
-@app.route('/paciente/<int:patient_id>')
-def get_paciente(patient_id):
+@app.route("/agregar_inventario", methods=["POST"])
+def agregar_inventario():
+    # Get the product data from the request
+    data = request.json
+    id_producto = data['id_producto']
+    id_instalacion = data['id_instalacion']
+    cantidad = data['cantidad']
+    fecha = data['fecha']
+
+    # Insert the data into the database
     g.cursor.execute(
-        "SELECT * FROM paciente WHERE id = %s", str(patient_id))
-    paciente = g.cursor.fetchone()
+        "INSERT INTO stock (id_producto, id_instalacion_medica, cantidad, fecha_exp) VALUES (%s, %s, %s,%s)",
+        (id_producto, id_instalacion, cantidad, fecha))
+    g.conn.commit()
 
-    if paciente:
-        # If the credentials are valid, return a success message and any relevant data
-        return jsonify({'message': 'Paciente encontrado', 'id': paciente[0], 'nombres': paciente[1], 'apellidos': paciente[2], 'correo': paciente[3], 'telefono': paciente[4], 'direccion': paciente[5]}), 200
-    else:
-        # If the credentials are invalid, return an error message
-        return jsonify({'message': 'Error, no se encontró el paciente'}), 401
-
-
-@app.route("/paciente/consultas/<int:patient_id>")
-def get_paciente_consultas(patient_id):
-    try:
-        g.cursor.execute('''
-                            SELECT c.id_consulta, im.nombre, m.nombre, c.created_at, bit.diagnostico
-                            FROM consulta c
-                                JOIN instalacion_medica im ON c.id_instalacion = im.id_instalacion_medica
-                                JOIN medico m on c.id_medico = m.id
-                                JOIN bitacora bit ON bit.id_consulta = c.id_consulta
-                            WHERE c.id_paciente = %s
-                        ''', str(patient_id))
-        rows = g.cursor.fetchall()
-        consultas = []
-        for row in rows:
-            consulta = {}
-            consulta['id'] = row[0]
-            consulta['instalacion'] = row[1]
-            consulta['author'] = row[2]
-            consulta['date'] = row[3]
-            consulta['details'] = row[4]
-            consultas.append(consulta)
-        return jsonify(consultas), 201
-    except Exception as e:
-        # Rollback the transaction in case of an error
-        g.conn.rollback()
-        # Return an error message
-        return jsonify({'message': 'Error obteniendo consultas: {}'.format(str(e))}), 500
-
-
-@app.route("/paciente/ultima_consulta/<int:patient_id>")
-def get_paciente_ultima_bitacora(patient_id):
-    try:
-        g.cursor.execute('''
-                            SELECT b.peso, b.presion_arterial, b.eficacia, b.created_at
-                                FROM consulta c
-                                JOIN bitacora b on c.id_consulta = b.id_consulta
-                            WHERE c.id_paciente = %s
-                            ORDER BY c.created_at DESC
-                            LIMIT 1;
-                        ''', str(patient_id))
-        data = g.cursor.fetchone()
-        return jsonify({'message': 'Ultima consulta encontrada', 'peso': data[0], 'presion_arterial': data[1], 'eficacia': data[2], 'fecha': data[3]}), 201
-
-    except Exception as e:
-        # Rollback the transaction in case of an error
-        g.conn.rollback()
-        # Return an error message
-        return jsonify({'message': 'Error obteniendo ultima consulta: {}'.format(str(e))}), 500
-
-
-@app.route("/paciente/consulta/<int:consulta_id>")
-def get_specific_consulta(consulta_id):
-    try:
-        g.cursor.execute('''
-                            SELECT p.nombres || ' ' || p.apellidos as entire, im.nombre, m.nombre, c.created_at
-                            FROM consulta c
-                                    JOIN instalacion_medica im ON c.id_instalacion = im.id_instalacion_medica
-                                    JOIN medico m on c.id_medico = m.id
-                                    JOIN paciente p on c.id_paciente = p.id
-                            WHERE c.id_consulta = %s;
-                        ''', str(consulta_id))
-        data = g.cursor.fetchone()
-        return jsonify({'message': 'Consulta encontrada', 'paciente': data[0], 'instalacion': data[1], 'medico': data[2], 'fecha': data[3]}), 201
-
-    except Exception as e:
-        # Rollback the transaction in case of an error
-        g.conn.rollback()
-        # Return an error message
-        return jsonify({'message': 'Error obteniendo consulta: {}'.format(str(e))}), 500
-
-
-@app.route("/paciente/consulta/bitacora/<int:consulta_id>")
-def get_specific_bitacora(consulta_id):
-    try:
-        g.cursor.execute('''
-                            SELECT presion_arterial, peso, expediente, diagnostico, created_at, eficacia, id_bitacora
-                                FROM bitacora WHERE id_consulta = %s;
-                        ''', str(consulta_id))
-        data = g.cursor.fetchone()
-        return jsonify({'message': 'Bitacora encontrada', 'presion': data[0], 'peso': data[1], 'expediente': data[2], 'diagnostico': data[3], 'fecha': data[4], 'eficacia': data[5], 'id_bitacora': data[6]}), 201
-
-    except Exception as e:
-        # Rollback the transaction in case of an error
-        g.conn.rollback()
-        # Return an error message
-        return jsonify({'message': 'Error obteniendo bitacora: {}'.format(str(e))}), 500
-
-
-@app.route("/bitacora/modificar", methods=["POST"])
-def modificar_bitacora():
-    try:
-        data = request.json
-
-        medico = data['medico_id']
-        bitacora = data['bitacora_id']
-        eficacia = data['eficacia']
-        expediente = data['expediente']
-        diagnostico = data['diagnostico']
-
-        # Insert the data into the database
-        g.cursor.execute("CALL modificar_bitacora(%s, %s, %s, %s, %s)",
-                         (medico, bitacora, eficacia, expediente, diagnostico))
-        g.conn.commit()
-
-        # Return a success message
-        return jsonify({'message': 'Se ha realizado la actualización'}), 201
-    except Exception as e:
-        # Rollback the transaction in case of an error
-        g.conn.rollback()
-
-        # Return an error message
-        return jsonify({'message': 'Error transferring medico: {}'.format(str(e))}), 500
+    # Return a success message
+    return jsonify(
+        {'message': 'Producto registrado al inventario exitosamente'}), 201
 
 
 if __name__ == "__main__":
