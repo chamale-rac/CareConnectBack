@@ -35,11 +35,24 @@ def hello():
     return "This is the test api"
 
 
+@app.route("/tipos_estado_paciente")
+def get_tipos_estado_paciente():
+    g.cursor.execute('SELECT * FROM tipos_estado_paciente')
+    rows = g.cursor.fetchall()
+    types = []
+    for row in rows:
+        _type = {}
+        _type['value'] = row[0]
+        _type['definition'] = row[1]
+        types.append(_type)
+    return jsonify(types), 201
+
+
 @app.route("/especialidad_medica")
 def get_especialidad_medica():
     g.cursor.execute('SELECT * FROM especialidad_medica')
-    especialiades = g.cursor.fetchall()
-    return jsonify(especialiades)
+    especialidades = g.cursor.fetchall()
+    return jsonify(especialidades)
 
 
 @app.route("/instalacion_medica")
@@ -248,17 +261,43 @@ def get_specific_consulta(consulta_id):
 def get_specific_bitacora(consulta_id):
     try:
         g.cursor.execute('''
-                            SELECT presion_arterial, peso, expediente, diagnostico, created_at, eficacia
+                            SELECT presion_arterial, peso, expediente, diagnostico, created_at, eficacia, id_bitacora
                                 FROM bitacora WHERE id_consulta = %s;
                         ''', str(consulta_id))
         data = g.cursor.fetchone()
-        return jsonify({'message': 'Bitacora encontrada', 'presion': data[0], 'peso': data[1], 'expediente': data[2], 'diagnostico': data[3], 'fecha': data[4], 'eficacia': data[5]}), 201
+        return jsonify({'message': 'Bitacora encontrada', 'presion': data[0], 'peso': data[1], 'expediente': data[2], 'diagnostico': data[3], 'fecha': data[4], 'eficacia': data[5], 'id_bitacora': data[6]}), 201
 
     except Exception as e:
         # Rollback the transaction in case of an error
         g.conn.rollback()
         # Return an error message
         return jsonify({'message': 'Error obteniendo bitacora: {}'.format(str(e))}), 500
+
+
+@app.route("/bitacora/modificar", methods=["POST"])
+def modificar_bitacora():
+    try:
+        data = request.json
+
+        medico = data['medico_id']
+        bitacora = data['bitacora_id']
+        eficacia = data['eficacia']
+        expediente = data['expediente']
+        diagnostico = data['diagnostico']
+
+        # Insert the data into the database
+        g.cursor.execute("CALL modificar_bitacora(%s, %s, %s, %s, %s)",
+                         (medico, bitacora, eficacia, expediente, diagnostico))
+        g.conn.commit()
+
+        # Return a success message
+        return jsonify({'message': 'Se ha realizado la actualización'}), 201
+    except Exception as e:
+        # Rollback the transaction in case of an error
+        g.conn.rollback()
+
+        # Return an error message
+        return jsonify({'message': 'Error transferring medico: {}'.format(str(e))}), 500
 
 
 if __name__ == "__main__":
