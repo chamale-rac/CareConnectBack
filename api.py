@@ -196,8 +196,23 @@ def get_procedimientos():
         """
         SELECT id_procedimiento, nombre FROM procedimientos
         WHERE id_instalacion_medica = %s
-      
+
     """, (id_instalacion_medica, ))
+
+    rows = g.cursor.fetchall()
+    columns = ('id', 'nombre')
+    result = [dict(zip(columns, row)) for row in rows]
+
+    return jsonify(result)
+
+
+@app.route('/enfermedades')
+def get_enfermedades():
+
+    g.cursor.execute(
+        """
+        SELECT id_enfermedad, nombre FROM enfermedades;
+    """)
 
     rows = g.cursor.fetchall()
     columns = ('id', 'nombre')
@@ -214,7 +229,7 @@ def get_pruebas_diagnosticas():
         """
         SELECT id_prueba, nombre FROM pruebas_diagnosticas
         WHERE id_instalacion_medica = %s
-      
+
     """, (id_instalacion_medica, ))
 
     rows = g.cursor.fetchall()
@@ -233,6 +248,7 @@ def nueva_consulta():
     pruebas = data['pruebas']
     medicamentos = data['medicamentos']
     procedimientos = data['procedimientos']
+    enfermedades = data['enfermedades']
 
     # Insert the data into the database
     g.cursor.execute(
@@ -243,10 +259,10 @@ def nueva_consulta():
     g.conn.commit()
 
     g.cursor.execute(
-        "INSERT INTO bitacora (id_consulta, presion_arterial, peso, expediente, diagnostico, eficacia) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id_bitacora",
+        "INSERT INTO bitacora (id_consulta, presion_arterial, peso, expediente, diagnostico, eficacia, tratamiento) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id_bitacora",
         (id_consulta, bitacora['presion'], bitacora['peso'],
          bitacora['expediente'], bitacora['diagnostico'],
-         bitacora['eficaciaTratamiento']))
+         bitacora['eficaciaTratamiento'], bitacora['tratamiento']))
     g.conn.commit()
     id_bitacora = g.cursor.fetchone()[0]
 
@@ -267,6 +283,12 @@ def nueva_consulta():
         g.cursor.execute(
             "INSERT INTO procedimientos_bitacora (id_bitacora, id_procedimento) VALUES (%s, %s)",
             (id_bitacora, procedimiento['idProcedimiento']))
+        g.conn.commit()
+
+    for enfermedad in enfermedades:
+        g.cursor.execute(
+            "INSERT INTO enfermedades_bitacora (id_bitacora, id_enfermedad) VALUES (%s, %s)",
+            (id_bitacora, enfermedad['idEnfermedad']))
         g.conn.commit()
 
     # Return a success message
@@ -292,18 +314,28 @@ def registrar_producto():
 
 @app.route("/agregar_inventario", methods=["POST"])
 def agregar_inventario():
-    # Get the product data from the request
-    data = request.json
-    id_producto = data['id_producto']
-    id_instalacion = data['id_instalacion']
-    cantidad = data['cantidad']
-    fecha = data['fecha']
+    try:
+        # Get the product data from the request
+        data = request.json
+        id_producto = data['id_producto']
+        id_instalacion = data['id_instalacion']
+        cantidad = data['cantidad']
+        fecha = data['fecha']
 
-    # Insert the data into the database
-    g.cursor.execute(
-        "INSERT INTO stock (id_producto, id_instalacion_medica, cantidad, fecha_exp) VALUES (%s, %s, %s,%s)",
-        (id_producto, id_instalacion, cantidad, fecha))
-    g.conn.commit()
+        # Insert the data into the database
+        g.cursor.execute(
+            "INSERT INTO stock (id_producto, id_instalacion_medica, cantidad, fecha_exp) VALUES (%s, %s, %s,%s)",
+            (id_producto, id_instalacion, cantidad, fecha))
+        g.conn.commit()
+
+        # Return a success message
+        return jsonify(
+            {'message': 'Producto registrado al inventario exitosamente'}), 201
+    except Exception as e:
+        # Rollback the transaction in case of an error
+        g.conn.rollback()
+        # Return an error message
+        return jsonify({'message': 'Error registrando el producto: {}'.format(str(e))}), 500
 
 
 @app.route("/paciente/consultas/<int:patient_id>")
@@ -391,15 +423,72 @@ def get_specific_consulta(consulta_id):
         return jsonify({'message': 'Error obteniendo consulta: {}'.format(str(e))}), 500
 
 
-@app.route("/paciente/consulta/bitacora/<int:consulta_id>")
+@app.route("/bitacora/listas/<int:consulta_id>")
+def get_bitacora_listas(consulta_id):
+    # Enfermedades
+    g.cursor.execute(
+        """
+            SELECT eb.id_enfermedad, e.nombre
+            FROM enfermedades_bitacora eb
+                    JOIN enfermedades e ON eb.id_enfermedad = e.id_enfermedad
+            WHERE id_bitacora = %s
+        """, (str(consulta_id)))
+
+    rows = g.cursor.fetchall()
+    columns = ('id', 'nombre')
+    enfermedades = [dict(zip(columns, row)) for row in rows]
+
+    # Medicamentos
+    g.cursor.execute(
+        """
+            SELECT mb.id_medicamento, p.nombre, mb.cantidad
+            FROM medicamento_bitacora mb
+                    JOIN producto p ON p.id = mb.id_medicamento
+            WHERE id_bitacora = %s
+        """, (str(consulta_id)))
+
+    rows = g.cursor.fetchall()
+    columns = ('id', 'nombre', 'cantidad')
+    medicamentos = [dict(zip(columns, row)) for row in rows]
+
+    # Pruebas Diagnósticas
+    g.cursor.execute(
+        """
+            SELECT pdb.id_prueba, pd.nombre
+            FROM pruebas_diagnosticas_bitacora pdb
+                    JOIN pruebas_diagnosticas pd ON pdb.id_prueba = pd.id_prueba
+            WHERE id_bitacora = %s
+        """, (str(consulta_id)))
+
+    rows = g.cursor.fetchall()
+    columns = ('id', 'nombre')
+    pruebas = [dict(zip(columns, row)) for row in rows]
+
+    # Procedimientos
+    g.cursor.execute(
+        """
+            SELECT pb.id_procedimento, p.nombre
+                FROM procedimientos_bitacora pb
+            JOIN procedimientos p ON pb.id_procedimento = p.id_procedimiento
+            WHERE id_bitacora = %s
+        """, (str(consulta_id)))
+
+    rows = g.cursor.fetchall()
+    columns = ('id', 'nombre')
+    procedimientos = [dict(zip(columns, row)) for row in rows]
+
+    return jsonify({'message': 'Listas encontradas', 'enfermedades': enfermedades, 'medicamentos': medicamentos, 'pruebas': pruebas, 'procedimientos': procedimientos}), 201
+
+
+@ app.route("/paciente/consulta/bitacora/<int:consulta_id>")
 def get_specific_bitacora(consulta_id):
     try:
         g.cursor.execute('''
-                            SELECT presion_arterial, peso, expediente, diagnostico, created_at, eficacia, id_bitacora
+                            SELECT presion_arterial, peso, expediente, diagnostico, created_at, eficacia, id_bitacora, tratamiento
                                 FROM bitacora WHERE id_consulta = %s;
                         ''', str(consulta_id))
         data = g.cursor.fetchone()
-        return jsonify({'message': 'Bitacora encontrada', 'presion': data[0], 'peso': data[1], 'expediente': data[2], 'diagnostico': data[3], 'fecha': data[4], 'eficacia': data[5], 'id_bitacora': data[6]}), 201
+        return jsonify({'message': 'Bitacora encontrada', 'presion': data[0], 'peso': data[1], 'expediente': data[2], 'diagnostico': data[3], 'fecha': data[4], 'eficacia': data[5], 'id_bitacora': data[6], 'tratamiento': data[7]}), 201
 
     except Exception as e:
         # Rollback the transaction in case of an error
@@ -408,7 +497,7 @@ def get_specific_bitacora(consulta_id):
         return jsonify({'message': 'Error obteniendo bitacora: {}'.format(str(e))}), 500
 
 
-@app.route("/bitacora/modificar", methods=["POST"])
+@ app.route("/bitacora/modificar", methods=["POST"])
 def modificar_bitacora():
     try:
         data = request.json
@@ -434,7 +523,7 @@ def modificar_bitacora():
         return jsonify({'message': 'Error transferring medico: {}'.format(str(e))}), 500
 
 
-@app.route("/tipos_estado_paciente")
+@ app.route("/tipos_estado_paciente")
 def get_tipos_estado_paciente():
     g.cursor.execute('SELECT * FROM tipos_estado_paciente')
     rows = g.cursor.fetchall()
@@ -447,14 +536,14 @@ def get_tipos_estado_paciente():
     return jsonify(types), 201
 
 
-@app.route("/get/medico/transferencia")
+@ app.route("/get/medico/transferencia")
 def get_medicos():
     g.cursor.execute('SELECT id, nombre, id_instalacion_medica FROM medico')
     medicos = g.cursor.fetchall()
     return jsonify(medicos)
 
 
-@app.route("/medico/transferir", methods=["POST"])
+@ app.route("/medico/transferir", methods=["POST"])
 def transferir_medico():
     try:
         # Get the registration data from the request
