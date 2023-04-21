@@ -115,7 +115,8 @@ def login_medico():
         return jsonify({
             'message': 'Medico logged in successfully',
             'id': medico[0],
-            'nombre': medico[3], 'role': 'medico'
+            'nombre': medico[3], 'role': 'medico',
+            'id_instalacion_medica': medico[7],
         }), 200
     else:
         # If the credentials are invalid, return an error message
@@ -176,13 +177,14 @@ def get_stock():
 
     g.cursor.execute(
         """
-        SELECT id_producto, nombre, cantidad FROM stock
+        SELECT id_producto, nombre, cantidad, fecha_exp FROM stock
         JOIN producto p ON stock.id_producto = p.id
         WHERE id_instalacion_medica = %s
     """, (id_instalacion_medica, ))
 
     rows = g.cursor.fetchall()
-    columns = ('id', 'nombre', 'cantidad')
+    print(rows)
+    columns = ('id', 'nombre', 'cantidad', 'fecha_exp')
     result = [dict(zip(columns, row)) for row in rows]
 
     return jsonify(result)
@@ -274,7 +276,7 @@ def nueva_consulta():
 
     for medicamento in medicamentos:
         g.cursor.execute(
-            "INSERT INTO medicamento_bitacora (id_bitacora, id_medicamento, cantidad) VALUES (%s, %s, %s)",
+            "CALL medicamento_consulta_resta_stock(%s, %s, %s)",
             (id_bitacora, medicamento['idMedicamento'],
              medicamento['cantidad']))
         g.conn.commit()
@@ -338,6 +340,21 @@ def agregar_inventario():
         return jsonify({'message': 'Error registrando el producto: {}'.format(str(e))}), 500
 
 
+@app.route("/doctor/pacientes")
+def doctor_pacientes():
+    search_term = request.args.get('doctor_id')
+    g.cursor.execute('''
+                    SELECT *
+                        FROM paciente
+                        WHERE id IN (SELECT consulta.id_paciente
+                                    FROM consulta
+                                    WHERE consulta.id_medico = %s
+                                    GROUP BY consulta.id_paciente)
+                     ''',  (str(search_term)))
+    pacientes = g.cursor.fetchall()
+    return jsonify(pacientes)
+
+
 @app.route("/paciente/consultas/<int:patient_id>")
 def get_paciente_consultas(patient_id):
     try:
@@ -367,7 +384,25 @@ def get_paciente_consultas(patient_id):
         return jsonify({'message': 'Error obteniendo consultas: {}'.format(str(e))}), 500
 
 
-@app.route('/paciente/<int:patient_id>')
+@app.route("/notificaciones/<int:instalation_id>")
+def get_notificaciones(instalation_id):
+    try:
+        g.cursor.execute("SELECT * FROM get_notifications(%s)",
+                         str(instalation_id))
+        rows = g.cursor.fetchall()
+        columns = ('tipo_notificacion', 'nombre_producto', 'porcentaje',
+                   'cantidad_actual', 'cantidad_inicial', 'fecha_expiracion', 'dias_para_expirar')
+        notificaciones = [dict(zip(columns, row)) for row in rows]
+        return jsonify(notificaciones), 201
+
+    except Exception as e:
+        # Rollback the transaction in case of an error
+        g.conn.rollback()
+        # Return an error message
+        return jsonify({'message': 'Error obteniendo ntificaciones: {}'.format(str(e))}), 500
+
+
+@ app.route('/paciente/<int:patient_id>')
 def get_paciente(patient_id):
     g.cursor.execute(
         "SELECT * FROM paciente WHERE id = %s", str(patient_id))
@@ -381,7 +416,7 @@ def get_paciente(patient_id):
         return jsonify({'message': 'Error, no se encontró el paciente'}), 401
 
 
-@app.route("/paciente/ultima_consulta/<int:patient_id>")
+@ app.route("/paciente/ultima_consulta/<int:patient_id>")
 def get_paciente_ultima_bitacora(patient_id):
     try:
         g.cursor.execute('''
@@ -402,7 +437,7 @@ def get_paciente_ultima_bitacora(patient_id):
         return jsonify({'message': 'Error obteniendo ultima consulta: {}'.format(str(e))}), 500
 
 
-@app.route("/paciente/consulta/<int:consulta_id>")
+@ app.route("/paciente/consulta/<int:consulta_id>")
 def get_specific_consulta(consulta_id):
     try:
         g.cursor.execute('''
@@ -423,7 +458,7 @@ def get_specific_consulta(consulta_id):
         return jsonify({'message': 'Error obteniendo consulta: {}'.format(str(e))}), 500
 
 
-@app.route("/bitacora/listas/<int:consulta_id>")
+@ app.route("/bitacora/listas/<int:consulta_id>")
 def get_bitacora_listas(consulta_id):
     # Enfermedades
     g.cursor.execute(
