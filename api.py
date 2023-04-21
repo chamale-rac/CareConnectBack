@@ -602,6 +602,97 @@ def transferir_medico():
         # Return an error message
         return jsonify({'message': 'Error transferring medico: {}'.format(str(e))}), 500
 
+# Statistics
+
+
+@app.route("/estadisticas/<int:query>", methods=['GET'])
+def get_estadisticas(query):
+    print(query)
+
+    if query == 0:
+        g.cursor.execute("""
+        WITH enfermedad_mortalidad AS (
+                WITH eficacia_enfermedad AS (
+                    SELECT *
+                    FROM bitacora
+                    JOIN enfermedades_bitacora eb ON bitacora.id_bitacora = eb.id_bitacora
+                    JOIN consulta ON bitacora.id_consulta = consulta.id_consulta
+                    JOIN enfermedades e ON eb.id_enfermedad = e.id_enfermedad
+                )
+                SELECT
+                    nombre,
+                    CASE eficacia
+                        WHEN 0 THEN 1
+                        ELSE 0
+                    END AS fue_mortal
+                FROM eficacia_enfermedad
+                GROUP BY nombre, eficacia, id_paciente
+            )
+            SELECT 
+                nombre, 
+                count(*) as casos_totales, 
+                SUM(fue_mortal) as muertes, 
+                SUM(fue_mortal)::float / COUNT(*) * 100 AS tasa_mortalidad
+            FROM enfermedad_mortalidad
+            GROUP BY nombre
+            ORDER BY tasa_mortalidad DESC
+            LIMIT 10
+        """)
+        result = g.cursor.fetchall()
+        formatted_result = []
+        for row in result:
+            formatted_result.append({
+                'nombre': row[0],
+                'casos_totales': row[1],
+                'muertes': row[2],
+                'tasa_mortalidad': row[3]
+            })
+        return jsonify(formatted_result)
+
+    if query == 1:
+
+        g.cursor.execute('SELECT id_medico, nombre, COUNT(id_paciente) as pacientes_atendidos FROM consulta JOIN medico m ON consulta.id_medico = m.id GROUP BY id_medico, nombre ORDER BY pacientes_atendidos DESC LIMIT 10;')
+        result = g.cursor.fetchall()
+        formatted_result = []
+        for row in result:
+            formatted_result.append({
+                'id_medico': row[0],
+                'nombre': row[1],
+                'pacientes_atendidos': row[2]
+            })
+        return jsonify(formatted_result)
+
+    if query == 2:
+        g.cursor.execute('SELECT RANK() OVER ( ORDER BY COUNT(id_instalacion) DESC) puesto, id_paciente, nombres, apellidos, COUNT(id_instalacion) AS num_visitas FROM consulta JOIN paciente p ON consulta.id_paciente = p.id GROUP BY id_paciente, nombres,apellidos ORDER BY num_visitas DESC LIMIT 5;')
+        result = g.cursor.fetchall()
+        formatted_result = []
+        for row in result:
+            formatted_result.append({
+                'puesto': row[0],
+                'id_paciente': row[1],
+                'nombres': row[2],
+                'apellidos': row[3],
+                'num_visitas': row[4]
+            })
+
+        return jsonify(formatted_result)
+
+    if query == 4:
+
+        g.cursor.execute('SELECT nombre , count(nombre) as pacientes_atendidos FROM instalacion_medica JOIN consulta c ON instalacion_medica.id_instalacion_medica = c.id_instalacion GROUP BY nombre ORDER BY pacientes_atendidos DESC LIMIT 3;')
+        result = g.cursor.fetchall()
+        formatted_result = []
+        for row in result:
+            formatted_result.append({
+                'nombre': row[0],
+                'pacientes_atendidos': row[1]
+            })
+        return jsonify(formatted_result)
+
+    return jsonify({'message': 'Query Not Found'}), 404
+
+
+# End Statistics
 
 if __name__ == "__main__":
     app.run()
