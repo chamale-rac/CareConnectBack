@@ -145,6 +145,23 @@ def login_admin():
         return jsonify({'message': 'Invalid credentials'}), 401
 
 
+@app.route("/registrar_admin", methods=["POST"])
+def registrar_admin():
+    # Get the registration data from the request
+    data = request.json
+    correo = data['correo']
+    contraseña = data['contraseña']
+    idInstalacionMedica = data['idInstalacionMedica']
+
+    # Insert the data into the database
+    g.cursor.execute("INSERT INTO admin (correo, contraseña, id_instalacion_medica) VALUES (%s, %s, %s)",
+                     (correo, contraseña, idInstalacionMedica))
+    g.conn.commit()
+
+    # Return a success message
+    return jsonify({'message': 'Admin registered successfully'}), 201
+
+
 @app.route("/registrar_paciente", methods=["POST"])
 def registrar_paciente():
     # Get the registration data from the request
@@ -714,4 +731,4 @@ def get_estadisticas(query):
 # End Statistics
 
 if __name__ == "__main__":
-    app.run(debug=False, host='0.0.0.0')
+    app.run()
