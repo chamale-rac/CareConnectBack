@@ -1,10 +1,14 @@
-# CareConnect
-Hi! this is our Project 2 Backend API from the course Base de Datos 1.
+# CareConnect :hospital:
+Welcome to CareConnect, our Project 2 Backend API for the course Base de Datos 1.
 
-## Goal
-The main objective is to create an application that interacts with a database using PostgreSQL. This under the concept of making a tool that improves the organization in health centers
+## Goal :dart:
+The main objective of our project is to create an application that interacts with a PostgreSQL database. Our tool aims to improve organization in health centers.
 
-## We are:
-- Adrian 
-- Abner 
-- Samuel
+## The Team :muscle:
+👨‍💻 Adrian: Check out Adrian's Github profile here
+
+👨‍💻 Abner: Check out Abner's Github profile here
+
+👨‍💻 Samuel: Check out Samuel's Github profile here
+
+Let's make healthcare more organized and efficient with CareConnect! :heartpulse:
