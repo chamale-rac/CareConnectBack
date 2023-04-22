@@ -106,7 +106,7 @@ def login_medico():
 
     # Check if the credentials are valid
     g.cursor.execute(
-        "SELECT * FROM medico WHERE correo = %s AND contraseña = %s",
+        "SELECT *, get_especialidad_name(id_especialidad_medica), get_instalation_name(id_instalacion_medica) FROM medico WHERE correo = %s AND contraseña = %s",
         (correo, contraseña))
     medico = g.cursor.fetchone()
 
@@ -117,6 +117,8 @@ def login_medico():
             'id': medico[0],
             'nombre': medico[3], 'role': 'medico',
             'id_instalacion_medica': medico[7],
+            'nombre_especialidad_medica': medico[8],
+            'nombre_instalacion_medica': medico[9]
         }), 200
     else:
         # If the credentials are invalid, return an error message
@@ -132,12 +134,12 @@ def login_admin():
 
     # Check if the credentials are valid
     g.cursor.execute(
-        "SELECT * FROM admin WHERE correo = %s AND contraseña = %s", (correo, contraseña))
+        "SELECT *, get_instalation_name(id_instalacion_medica) FROM admin WHERE correo = %s AND contraseña = %s", (correo, contraseña))
     admin = g.cursor.fetchone()
 
     if admin:
         # If the credentials are valid, return a success message and any relevant data
-        return jsonify({'message': 'Admin logged in successfully', 'id': admin[0], 'id_instalacion_medica': admin[3], 'role': 'admin'}), 200
+        return jsonify({'message': 'Admin logged in successfully', 'id': admin[0], 'id_instalacion_medica': admin[3], 'role': 'admin', 'correo': admin[1], 'nombre_instalacion': admin[4]}), 200
     else:
         # If the credentials are invalid, return an error message
         return jsonify({'message': 'Invalid credentials'}), 401
@@ -392,6 +394,23 @@ def get_notificaciones(instalation_id):
         rows = g.cursor.fetchall()
         columns = ('tipo_notificacion', 'nombre_producto', 'porcentaje',
                    'cantidad_actual', 'cantidad_inicial', 'fecha_expiracion', 'dias_para_expirar')
+        notificaciones = [dict(zip(columns, row)) for row in rows]
+        return jsonify(notificaciones), 201
+
+    except Exception as e:
+        # Rollback the transaction in case of an error
+        g.conn.rollback()
+        # Return an error message
+        return jsonify({'message': 'Error obteniendo ntificaciones: {}'.format(str(e))}), 500
+
+
+@app.route("/notificaciones/all")
+def get_all_notificaciones():
+    try:
+        g.cursor.execute("SELECT * FROM get_all_notifications()")
+        rows = g.cursor.fetchall()
+        columns = ('tipo_notificacion', 'nombre_producto', 'porcentaje',
+                   'cantidad_actual', 'cantidad_inicial', 'fecha_expiracion', 'dias_para_expirar', 'instalacion_medica')
         notificaciones = [dict(zip(columns, row)) for row in rows]
         return jsonify(notificaciones), 201
 
@@ -695,4 +714,4 @@ def get_estadisticas(query):
 # End Statistics
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=False, host='0.0.0.0')
